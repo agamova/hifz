@@ -1,0 +1,35 @@
+name: Hifz
+options:
+  bundleIdPrefix: ru.agamova
+  deploymentTarget:
+    iOS: "18.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+targets:
+  Hifz:
+    type: application
+    platform: iOS
+    sources:
+      - path: Hifz
+      - path: data/build/quran.sqlite
+        buildPhase: resources
+        optional: true
+    info:
+      path: Hifz/Info.plist
+      properties:
+        CFBundleDisplayName: Hifz
+        CFBundleDevelopmentRegion: ru
+        UILaunchScreen: {}
+        UIAppFonts:
+          - AmiriQuran.ttf
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: ru.agamova.hifz
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
