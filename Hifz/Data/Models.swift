@@ -33,8 +33,18 @@ struct Segment: Identifiable, Hashable {
     let role: Role
     let pos: String
     let features: [String: String]
+    let particle: Particle?
 
     var id: Int { index }
+}
+
+/// Значение служебной части слова из нашего словаря частиц.
+struct Particle: Hashable {
+    let title: String
+    let gloss: String
+    let roleRu: String
+    let note: String?
+    let isDraft: Bool
 }
 
 struct Word: Identifiable, Hashable {

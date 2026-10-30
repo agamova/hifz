@@ -135,6 +135,9 @@ struct WordCardView: View {
                     if word.segments.count > 1 {
                         Text(s.text).font(.quran(24, relativeTo: .title2)).foregroundStyle(color(for: s.role))
                     }
+                    if let p = s.particle {
+                        ParticleNote(particle: p)
+                    }
                     Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 6) {
                         ForEach(Grammar.rows(for: s), id: \.0) { label, value in
                             GridRow {
@@ -189,6 +192,34 @@ struct WordCardView: View {
     }
 }
 
+/// Значение частицы из словаря: «би — предлог: с, посредством» и пояснение, с тегом «Черновик».
+private struct ParticleNote: View {
+    let particle: Particle
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("\(particle.title) — \(particle.roleRu)").font(.subheadline.weight(.semibold))
+                Spacer(minLength: 8)
+                if particle.isDraft {
+                    Label("Черновик", systemImage: "pencil.line")
+                        .font(.caption2.weight(.semibold))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color.cardBg, in: Capsule())
+                }
+            }
+            Text(particle.gloss).font(.body)
+            if let note = particle.note {
+                Text(note).font(.callout).foregroundStyle(Color.inkSecondary)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.focusNeutral, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
 private struct SegmentTile: View {
     let segment: Segment
     let color: Color
@@ -197,8 +228,19 @@ private struct SegmentTile: View {
     var body: some View {
         VStack(spacing: 4) {
             Text(segment.text).font(.quran(34, relativeTo: .title)).foregroundStyle(color)
-            Text(Grammar.posName(segment.pos)).font(.caption).foregroundStyle(Color.inkSecondary)
+            // На плитке только начало: роль без арабского термина и первое значение. Полностью — в пояснении ниже.
+            Text(segment.particle.map { Self.head($0.roleRu, upTo: " (") } ?? Grammar.posName(segment.pos))
+                .font(.caption)
+                .foregroundStyle(Color.inkSecondary)
+                .multilineTextAlignment(.center)
+            if let p = segment.particle {
+                Text("\(p.title): \(Self.head(p.gloss, upTo: ";"))")
+                    .font(.footnote)
+                    .foregroundStyle(Color.ink)
+                    .multilineTextAlignment(.center)
+            }
         }
+        .frame(maxWidth: 150)
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(color.opacity(scheme == .dark ? 0.18 : 0.10),
@@ -207,5 +249,9 @@ private struct SegmentTile: View {
             UnevenRoundedRectangle(topLeadingRadius: 12, topTrailingRadius: 12).fill(color).frame(height: 3)
         }
         .accessibilityElement(children: .combine)
+    }
+
+    private static func head(_ s: String, upTo separator: String) -> String {
+        s.components(separatedBy: separator).first ?? s
     }
 }

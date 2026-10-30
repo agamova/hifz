@@ -41,13 +41,14 @@ BUILD_DIR = os.path.join(ROOT_DIR, "data", "build")
 DB_PATH = os.path.join(BUILD_DIR, "quran.sqlite")
 REPORT_PATH = os.path.join(BUILD_DIR, "report.txt")
 MANIFEST_PATH = os.path.join(RAW_DIR, "manifest.json")
+PARTICLES_PATH = os.path.join(ROOT_DIR, "data", "particles.json")
 
 QAC_REL = "qac/quranic-corpus-morphology-0.4.txt"
 API = "https://api.quran.com/api/v4"
 KULIEV_ID = 45
 USER_AGENT = "hifz-data-build/0.1 (personal project)"
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 DATA_VERSION = "0.1"
 DEFAULT_SURAHS = [1, 112, 113, 114]
 
@@ -131,7 +132,17 @@ CREATE TABLE segments (
   pos TEXT NOT NULL,
   features TEXT NOT NULL,
   lemma_id INTEGER REFERENCES lemmas(id),
+  particle_id INTEGER REFERENCES particles(id),
   PRIMARY KEY (surah, ayah, position, seg)
+);
+
+CREATE TABLE particles (
+  id INTEGER PRIMARY KEY,     -- порядок записи в data/particles.json
+  title TEXT NOT NULL,        -- короткая форма для плитки: «би»
+  gloss TEXT NOT NULL,        -- основное значение
+  role_ru TEXT NOT NULL,      -- грамматическая роль по-русски
+  note TEXT,
+  draft INTEGER NOT NULL      -- 1, пока не проверено человеком
 );
 
 CREATE INDEX words_lemma ON words(lemma_id);
@@ -492,6 +503,41 @@ def lemma_text(lemma_bw):
 # ---------------------------------------------------------------------------
 # Сборка
 # ---------------------------------------------------------------------------
+def particle_key(seg, lemma):
+    """Ключ сегмента в словаре частиц: тег приставки, местоимение или служебная лемма."""
+    f = seg["features"]
+    if seg["role"] == "prefix" and f.get("prefix"):
+        return ("prefix", f["prefix"])
+    if seg["pos"] == "PRON" and f.get("person"):
+        return ("pron", f.get("person", "") + f.get("gender", "") + f.get("number", ""))
+    return ("lemma", lemma or "", seg["pos"])
+
+
+def load_particles(problems):
+    """data/particles.json → строки таблицы particles и индекс ключ → id."""
+    if not os.path.exists(PARTICLES_PATH):
+        problems.append("Нет словаря частиц %s" % os.path.relpath(PARTICLES_PATH, ROOT_DIR))
+        return [], {}
+    with open(PARTICLES_PATH, encoding="utf-8") as f:
+        entries = json.load(f)
+    rows, index = [], {}
+    for i, e in enumerate(entries, start=1):
+        k = e["key"]
+        if "prefix" in k:
+            key = ("prefix", k["prefix"])
+        elif "pron" in k:
+            key = ("pron", k["pron"])
+        else:
+            key = ("lemma", k["lemma"], k["pos"])
+        if key in index:
+            problems.append("Словарь частиц: повтор ключа %s" % (key,))
+            continue
+        index[key] = i
+        rows.append((i, e["title"], e["gloss"], e["role_ru"], e.get("note") or None,
+                     1 if e.get("draft", True) else 0))
+    return rows, index
+
+
 def build(surahs, qac_src):
     os.makedirs(RAW_DIR, exist_ok=True)
     os.makedirs(BUILD_DIR, exist_ok=True)
@@ -606,6 +652,9 @@ def build(surahs, qac_src):
                             % (seg["loc"], lb, lemma_root_seen[key], seg["root_bw"]))
         return lemma_ids[key]
 
+    # --- словарь частиц (наш, data/particles.json) ---
+    particle_rows, particle_index = load_particles(problems)
+
     word_rows, seg_rows = [], []
     for key in sorted(qc_words):
         s, a, p = key
@@ -634,10 +683,17 @@ def build(surahs, qac_src):
                 if x is stems[0]:
                     lemma_id = lid
                     root_id = get_root(x["root_bw"])
+            pid = None
+            if x["role"] != "stem" or x["pos"] not in NOMINAL_VERBAL_POS:
+                pkey = particle_key(x, lemma_text(x["lemma_bw"]) if x["lemma_bw"] else None)
+                pid = particle_index.get(pkey)
+                if pid is None:
+                    notes.append("%s:%d: нет записи в словаре частиц для %s (%s)"
+                                 % (addr, x["seg"], x["text"], pkey))
             seg_rows.append((s, a, p, x["seg"], x["text"], x["role"], x["pos"],
                              json.dumps(x["features"], ensure_ascii=False, sort_keys=True,
                                         separators=(",", ":")),
-                             lid))
+                             lid, pid))
 
         if segs:
             concat = "".join(x["text"] for x in segs)
@@ -737,7 +793,8 @@ def build(surahs, qac_src):
     con.executemany("INSERT INTO roots VALUES (?,?)", root_rows)
     con.executemany("INSERT INTO lemmas VALUES (?,?,?,?)", lemma_rows)
     con.executemany("INSERT INTO words VALUES (?,?,?,?,?,?,?,?,?,?)", word_rows)
-    con.executemany("INSERT INTO segments VALUES (?,?,?,?,?,?,?,?,?)", seg_rows)
+    con.executemany("INSERT INTO particles VALUES (?,?,?,?,?,?)", particle_rows)
+    con.executemany("INSERT INTO segments VALUES (?,?,?,?,?,?,?,?,?,?)", seg_rows)
     con.commit()
     fk = con.execute("PRAGMA foreign_key_check").fetchall()
     for row in fk:

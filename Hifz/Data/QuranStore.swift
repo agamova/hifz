@@ -74,11 +74,20 @@ final class QuranStore {
         ayahsBySurah = Dictionary(grouping: ayahs, by: \.surah)
 
         struct SegRow { let key: String; let segment: Segment }
-        let segs = try query(db, "SELECT surah, ayah, position, seg, text, role, pos, features FROM segments ORDER BY surah, ayah, position, seg") { s in
-            SegRow(
+        let segs = try query(db, """
+            SELECT s.surah, s.ayah, s.position, s.seg, s.text, s.role, s.pos, s.features,
+                   p.title, p.gloss, p.role_ru, p.note, p.draft
+            FROM segments s
+            LEFT JOIN particles p ON p.id = s.particle_id
+            ORDER BY s.surah, s.ayah, s.position, s.seg
+            """) { s in
+            let particle = s.optText(8).map {
+                Particle(title: $0, gloss: s.text(9), roleRu: s.text(10), note: s.optText(11), isDraft: s.int(12) != 0)
+            }
+            return SegRow(
                 key: "\(s.int(0)):\(s.int(1)):\(s.int(2))",
                 segment: Segment(index: s.int(3), text: s.text(4), role: Segment.Role(rawValue: s.text(5)) ?? .stem,
-                                 pos: s.text(6), features: Self.parseFeatures(s.text(7)))
+                                 pos: s.text(6), features: Self.parseFeatures(s.text(7)), particle: particle)
             )
         }
         let segsByWord = Dictionary(grouping: segs, by: \.key).mapValues { $0.map(\.segment) }

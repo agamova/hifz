@@ -1,4 +1,4 @@
-# Схема данных `quran.sqlite` (версия 0.1)
+# Схема данных `quran.sqlite` (схема 2)
 
 Файл собирает `tools/build_data.py` (агент `data-pipeline`), приложение только читает его. Все тексты в UTF-8, арабский — как в источнике, без изменений.
 
@@ -70,7 +70,20 @@ CREATE TABLE segments (
   pos TEXT NOT NULL,          -- часть речи QAC: 'P','N','V','PRON',...
   features TEXT NOT NULL,     -- JSON: {"case":"GEN","gender":"M","number":"S","person":"3","aspect":"PERF","mood":"JUS","form":"IV","state":"DEF",...}
   lemma_id INTEGER REFERENCES lemmas(id),
+  particle_id INTEGER REFERENCES particles(id),  -- значение служебной части (схема 2)
   PRIMARY KEY (surah, ayah, position, seg)
+);
+
+-- Наш словарь частиц, приставок и местоимений (data/particles.json, в git).
+-- Сегмент находит запись по ключу: тег приставки QAC (bi+), местоимение (3MP)
+-- или служебная лемма + pos (مِن, P).
+CREATE TABLE particles (
+  id INTEGER PRIMARY KEY,
+  title TEXT NOT NULL,        -- «би»
+  gloss TEXT NOT NULL,        -- «с, посредством; к»
+  role_ru TEXT NOT NULL,      -- «предлог»
+  note TEXT,
+  draft INTEGER NOT NULL      -- 1, пока не проверено человеком
 );
 
 CREATE INDEX words_lemma ON words(lemma_id);
