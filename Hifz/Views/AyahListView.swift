@@ -63,7 +63,6 @@ private struct AyahRow: View {
                 .lineLimit(3)
                 .multilineTextAlignment(.trailing)
                 .frame(maxWidth: .infinity, alignment: .trailing)
-                .environment(\.layoutDirection, .rightToLeft)
             if let t = ayah.translation {
                 Text(t)
                     .font(.subheadline)

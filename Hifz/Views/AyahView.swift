@@ -82,7 +82,7 @@ struct AyahView: View {
             }
         }
         .environment(\.layoutDirection, .rightToLeft)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .trailing)
         .padding(20)
         .background(Color.cardBg, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Color.cardStroke, lineWidth: 0.5))
